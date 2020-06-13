@@ -1,0 +1,116 @@
+
+name: openwrt fq
+on:
+  push:
+    branches: 
+      - master
+    paths:
+      - '.github/workflows/openwrt_fq.yml'
+    
+  schedule:
+    - cron: '0 18 */7 * *'
+
+env:
+  SSH_ACTIONS: true
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    #if: github.repository == 'uosX/openwrt'
+    
+    steps:  
+
+      - name: Checkout
+        uses: actions/checkout@master
+        with:
+          ref: master
+
+      - name: Space cleanup
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |          
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/apt/sources.list.d
+          sudo apt-get update
+          sudo apt-get -y install subversion build-essential libncurses5-dev zlib1g-dev gawk git ccache gettext libssl-dev xsltproc zip
+          sudo apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3.5 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf wget
+          sudo apt-get -y autoremove --purge
+          sudo apt-get clean
+                     
+      - name: clone git
+        run: |
+          cd /home/runner/
+          git clone https://git.openwrt.org/openwrt/openwrt.git
+          
+          cd openwrt/
+          
+          git fetch --tags
+          git tag -l
+          git checkout v19.07.3
+          
+          cd /home/runner/
+          git clone https://github.com/coolsnowwolf/lede
+          
+          cp -r lede/package/lean/ openwrt/package/
+          
+      #- name: Setup Debug Session
+      #  uses: P3TERX/debugger-action@master                   
+          
+      - name: change Update install feeds
+        run: |
+          cd /home/runner/openwrt/
+          sed -i 's/https:\/\/git.openwrt.org\/feed\/packages.git^2e6bd4cb86682b224803325127d3f777d40b3231/https:\/\/github.com\/coolsnowwolf\/packages/' feeds.conf.default
+          sed -i 's/https:\/\/git.openwrt.org\/project\/luci.git^fb2f36306756d0d0782dcab8413a8bb7ec379e54/https:\/\/github.com\/coolsnowwolf\/luci/' feeds.conf.default
+          #echo "src-git helloworld https://github.com/fw876/helloworld" >> feeds.conf.default
+              
+          ./scripts/feeds update -a     
+          ./scripts/feeds install -a
+          
+          cd /home/runner/openwrt/package/lean/
+          git clone https://github.com/fw876/helloworld
+  
+      - name: Generate configuration file
+        run: |
+          cd /home/runner/openwrt/
+          rm -rf .config
+          wget https://raw.githubusercontent.com/uosX/openwrt/master/openwrt_fq.config    
+          cat openwrt_fq.config > .config
+          cat .config
+          
+          sed -i 's/192.168.1.1/172.16.10.1/g' package/base-files/files/bin/config_generate
+          sed -i 's/192.168.\$((addr_offset++)).1/172.16.\$((addr_offset++)).1/g' package/base-files/files/bin/config_generate
+          sed -i 's/255.255.255.0/255.255.255.192/g' package/base-files/files/bin/config_generate
+          
+          #sed -i 108a\\"                set network.\$1.gateway='172.16.10.254" package/base-files/files/bin/config_generate
+          #sed -i 109a\\"                set network.\$1.dns='127.0.0.1 223.5.5.5 8.8.8.8" package/base-files/files/bin/config_generate
+          
+          
+          cp /usr/bin/upx /home/runner/openwrt/staging_dir/host/bin/
+          cp /usr/bin/upx-ucl /home/runner/openwrt/staging_dir/host/bin/
+          
+  
+      - name: Make download
+        run: |          
+          cd /home/runner/openwrt/
+          make -j8 download V=s
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+        
+      - name: Compile firmware
+        run: |
+          cd /home/runner/openwrt/
+          echo -e "$(nproc) thread build."
+          make -j$(nproc) V=s
+        
+      - name: Prepare artifact
+        run: |
+          cd /home/runner/openwrt/
+          mkdir artifact          
+          cp .config artifact/
+          cp bin/targets/x86/64/openwrt*.img.gz artifact/
+          
+      - name: Upload Artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: lede
+          path: /home/runner/openwrt/artifact
