@@ -1,0 +1,98 @@
+name: lede
+on:
+  push:
+    branches: 
+      - master
+    paths:
+      - '.github/workflows/lede.yml'
+    
+  schedule:
+    - cron: '0 15 */5 * *'
+
+env:
+  SSH_ACTIONS: true
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    #if: github.repository == 'uosX/openwrt'
+    
+    steps:  
+      - name: Checkout
+        uses: actions/checkout@master
+        with:
+          ref: master
+
+      - name: Space cleanup
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |          
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/apt/sources.list.d
+          sudo apt-get update
+          sudo apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3.5 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf wget
+          sudo apt-get -y autoremove --purge
+          sudo apt-get clean
+                     
+      - name: clone git
+        run: |
+          cd /home/runner/
+          git clone https://github.com/coolsnowwolf/lede         
+        
+      - name: change Update install feeds
+        run: |
+          cd /home/runner/lede/
+          
+          ./scripts/feeds update -a          
+          ./scripts/feeds install -a
+          
+          cd /home/runner/lede/package/lean/
+          git clone https://github.com/fw876/helloworld
+          git clone https://github.com/jerrykuku/lua-maxminddb.git
+          git clone https://github.com/jerrykuku/luci-app-vssr.git
+          git clone https://github.com/honwen/luci-app-aliddns.git
+          git clone -b lede https://github.com/pymumu/luci-app-smartdns.git
+          git clone https://github.com/pymumu/smartdns.git
+          rm -rf luci-theme-argon/
+          git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git 
+          
+      - name: Generate configuration file
+        run: |
+          cd /home/runner/lede/
+          rm -rf .config
+          wget https://raw.githubusercontent.com/uosX/openwrt/master/lede.config   
+          cat lede.config > .config
+          cat .config
+          cd /home/runner/lede/
+          sed -i 's/192.168.1.1/172.16.10.1/g' package/base-files/files/bin/config_generate
+          sed -i 's/192.168.\$((addr_offset++)).1/172.16.\$((addr_offset++)).1/g' package/base-files/files/bin/config_generate
+          sed -i 's/255.255.255.0/255.255.255.192/g' package/base-files/files/bin/config_generate
+                    
+          cp /usr/bin/upx /home/runner/lede/staging_dir/host/bin/
+          cp /usr/bin/upx-ucl /home/runner/lede/staging_dir/host/bin/
+          
+      - name: Make download
+        run: |         
+          cd /home/runner/lede/
+          make -j8 download V=s
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+        
+      - name: Compile firmware
+        run: |
+          cd /home/runner/lede/
+          echo -e "$(nproc) thread build."
+          make -j$(nproc) V=s
+  
+      - name: Prepare artifact
+        run: |
+          cd /home/runner/lede/
+          mkdir artifact          
+          cp .config artifact/
+          cp bin/targets/x86/64/openwrt*.img.gz artifact/
+          
+      - name: Upload Artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: lede
+          path: /home/runner/lede/artifact
