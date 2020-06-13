@@ -112,5 +112,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@master
         with:
-          name: lede
+          name: openwrt
           path: /home/runner/openwrt/artifact
