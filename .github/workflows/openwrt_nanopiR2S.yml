@@ -1,11 +1,11 @@
-name: r2s openwrt
+name: openwrt_nanopiR2S
 
 on:
   push:
     branches: 
       - master
     paths:
-      - '.github/workflows/nanopiR2S_openwrt.yml'
+      - '.github/workflows/openwrt_nanopiR2S.yml'
   schedule:
     - cron: '0 18 */2 * *'
 
