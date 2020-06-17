@@ -81,6 +81,9 @@ jobs:
       - name: Compile firmware
         run: |
           cd /home/runner/lede/
+          
+          make -j1 V=s
+          
           echo -e "$(nproc) thread build."
           make -j$(nproc) V=s
   
