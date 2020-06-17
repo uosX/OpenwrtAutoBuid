@@ -99,6 +99,9 @@ jobs:
       - name: Compile firmware
         run: |
           cd /home/runner/openwrt/
+          
+          make -j1 V=s
+          
           echo -e "$(nproc) thread build."
           make -j$(nproc) V=s
         
