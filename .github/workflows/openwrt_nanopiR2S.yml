@@ -7,7 +7,7 @@ on:
     paths:
       - '.github/workflows/openwrt_nanopiR2S.yml'
   schedule:
-    - cron: '0 0 */10 * *'
+    - cron: '0 0 */16 * *'
 
 jobs:
 
