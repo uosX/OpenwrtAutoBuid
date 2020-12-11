@@ -8,7 +8,7 @@ on:
       - '.github/workflows/openwrt_fq.yml'
     
   schedule:
-    - cron: '0 0 */8 * *'
+    - cron: '0 0 */16 * *'
 
 env:
   SSH_ACTIONS: true
